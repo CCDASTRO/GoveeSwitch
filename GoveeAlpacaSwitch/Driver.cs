@@ -22,7 +22,7 @@ namespace GoveeSwitch
         private TraceLogger tl;
         
         private List<GoveeDevice> devices = new List<GoveeDevice>();
-        private int currentDeviceIndex = 0;
+        
         #region COM Registration
 
         [ComRegisterFunction]
@@ -68,8 +68,11 @@ namespace GoveeSwitch
         public short InterfaceVersion => 2;
         public string Name => "Govee Switch";
 
-        public short MaxSwitch => 1;
+        // 🔥 Dynamic switch count (max 4 enforced)
+        public short MaxSwitch => (short)Math.Min(devices.Count, 4);
+
         public ArrayList SupportedActions => new ArrayList();
+
         public bool CanWrite(short id)
         {
             Validate(id);
@@ -79,20 +82,21 @@ namespace GoveeSwitch
         public bool GetSwitch(short id)
         {
             Validate(id);
-            return devices.Count > 0 ? devices[currentDeviceIndex].State : false;
+            return devices[id].State;
         }
 
         public void SetSwitch(short id, bool value)
         {
             Validate(id);
-            if (devices.Count == 0) return;
 
-            devices[currentDeviceIndex].State = value;
-            SendCommand(devices[currentDeviceIndex], value);
-            tl.LogMessage("SetSwitch", value.ToString());
+            devices[id].State = value;
+            SendCommand(devices[id], value);
+
+            tl.LogMessage($"SetSwitch[{id}]", value.ToString());
         }
 
         public double GetSwitchValue(short id) => GetSwitch(id) ? 1 : 0;
+
         public void SetSwitchValue(short id, double value)
         {
             Validate(id);
@@ -101,7 +105,8 @@ namespace GoveeSwitch
             double max = MaxSwitchValue(id);
 
             if (value < min || value > max)
-                throw new ASCOM.InvalidValueException($"Value {value} is outside allowed range [{min}, {max}]");
+                throw new ASCOM.InvalidValueException(
+                    $"Value {value} is outside allowed range [{min}, {max}]");
 
             SetSwitch(id, value > 0.5);
         }
@@ -117,6 +122,7 @@ namespace GoveeSwitch
             Validate(id);
             return 1;
         }
+
         public double SwitchStep(short id)
         {
             Validate(id);
@@ -126,20 +132,23 @@ namespace GoveeSwitch
         public string GetSwitchName(short id)
         {
             Validate(id);
-            return devices.Count > 0 ? devices[currentDeviceIndex].Name : "Govee Device";
+            return string.IsNullOrWhiteSpace(devices[id].Name)
+                ? $"Govee {id}"
+                : devices[id].Name;
         }
 
         public void SetSwitchName(short id, string name)
         {
-            if (devices.Count > 0)
-                devices[currentDeviceIndex].Name = name;
+            Validate(id);
+            devices[id].Name = name;
         }
 
         public string GetSwitchDescription(short id)
         {
             Validate(id);
-            return "Govee Device";
+            return $"Govee device {id}";
         }
+
 
         public void SetupDialog()
         {
@@ -174,8 +183,8 @@ namespace GoveeSwitch
 
         private void Validate(short id)
         {
-            if (id != 0)
-                throw new ASCOM.InvalidValueException("Only switch 0 is valid");
+            if (id < 0 || id >= Math.Min(devices.Count, 4))
+                throw new ASCOM.InvalidValueException($"Invalid switch id {id}");
         }
 
         private void SendCommand(GoveeDevice device, bool on)
@@ -238,6 +247,8 @@ namespace GoveeSwitch
 
                     devices.Add(d);
                 }
+                if (devices.Count > 4)
+                    devices = devices.GetRange(0, 4);
             }
             catch (Exception ex)
             {

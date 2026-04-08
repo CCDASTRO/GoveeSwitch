@@ -68,6 +68,12 @@ namespace GoveeSwitch
 
         private void btnAdd_Click_1(object sender, EventArgs e)
         {
+            if (Devices.Count >= 4)
+            {
+                MessageBox.Show("Maximum of 4 devices allowed");
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(txtMAC_1.Text))
             {
                 MessageBox.Show("MAC address required");
@@ -85,7 +91,6 @@ namespace GoveeSwitch
             Devices.Add(device);
             RefreshListBox();
 
-            // Clear fields after adding
             txtDeviceName_1.Text = "";
             txtMAC_1.Text = "";
             txtModel_1.Text = "";
